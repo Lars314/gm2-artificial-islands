@@ -25,5 +25,6 @@
     "eHigh":1000,
     "energyMethod":"linear",
     "positionMethod":"random",
-    "minFitEnergy":50.0
+    "minFitEnergy":50.0,
+    "moliereRadius":2.2
 }

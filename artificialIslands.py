@@ -16,8 +16,135 @@ import matplotlib.pylab as pylab
 import ROOT as r
 import json
 
-with open("artificialIlands_config.json") as config_file:
+with open("artificialIslands_config.json") as config_file:
     config = json.load(config_file)
+
+moliere_radius = config['moliereRadius'] / 2.5
+
+
+def draw(this_island, legend=False, show_moliere_radius=False,
+         show_hit_xtals=False, show_xtal_energies=False,
+         show_hit_label=False, show_traces=False, energy_cmap=False,
+         ring_alpha=None, label_e_scale='G'):
+    """
+    Give a matplotlib representation of this calorimeter
+
+    ------------- Parameters -------------
+    """
+    fig, ax = plt.subplots(1, 1)
+    fig.set_size_inches(9, 6)
+
+    for x in range(1, 9):
+        ax.axvline(x=x, ymin=0, ymax=6, color='xkcd:grey')
+
+    for y in range(1, 6):
+        ax.axhline(y=y, xmin=0, xmax=9, color='xkcd:grey')
+
+    # every bin is 10 MeV
+    colors = pylab.cm.viridis(np.linspace(0, 1, 100))
+
+    if (not ring_alpha):
+        if (show_traces):
+            ring_alpha = 0.3
+        else:
+            ring_alpha = 1
+
+    impact_num = 1
+    for impact in this_island.calo.impacts:
+
+        if (energy_cmap):
+            color_index = impact["energy"] // 40
+            if (color_index >= 100):
+                color_index = 99
+            this_color = colors[color_index]
+        else:
+            this_color = next(ax._get_lines.prop_cycler)['color']
+
+        if (label_e_scale == 'M'):
+            this_label = "P{0}  ".format(impact_num) + \
+                            "{0:.0f} MeV ".format(impact["energy"]) + \
+                            "{0:.2f} ns".format(impact['time'])
+        else:
+            this_label = "P{0}  ".format(impact_num) + \
+                            "{0:.2f} GeV ".format(impact["energy"]/1000) + \
+                            "{0:.2f} ns".format(impact['time'])
+
+        ax.plot(impact["x"], impact["y"],
+                marker='o', markersize=10, color=this_color,
+                alpha=ring_alpha,
+                label=this_label)
+
+        if (show_hit_label):
+            ax.text(x=impact["x"]+0.15, y=impact["y"]-0.2,
+                    s="P"+str(impact_num), color=this_color, size=18,
+                    alpha=ring_alpha)
+
+        # ax.plot(impact["ring_x"], impact["ring_y"], color=this_color)
+        # ax.plot(impact["small_ring_x"], impact["small_ring_y"],
+        #        color=this_color)
+
+        moliere_circle = plt.Circle((impact["x"], impact["y"]),
+                                    moliere_radius, color=this_color,
+                                    linewidth=3, fill=False,
+                                    alpha=ring_alpha)
+        moliere_circle_2 = plt.Circle((impact["x"], impact["y"]),
+                                      2*moliere_radius,
+                                      color=this_color,
+                                      linewidth=3, fill=False,
+                                      alpha=ring_alpha)
+
+        if (show_hit_xtals):
+            for hit_crystal in impact["hit_crystals"]:
+                rect = patches.Rectangle((hit_crystal[0], hit_crystal[1]),
+                                         1, 1, linewidth=3,
+                                         edgecolor='none',
+                                         facecolor='xkcd:light grey')
+                ax.add_patch(rect)
+
+        if (show_xtal_energies):
+            for xtal in impact["hit_crystals"]:
+                xtal_events = this_island.calo.xtalGrid[xtal[0]
+                                                        ][xtal[1]].impacts
+                energies_list = []
+                for event in xtal_events:
+                    energies_list.append(event[1])
+                energy_string = ""
+                for val in energies_list:
+                    energy_string += "{0} MeV \n".format(int(val))
+                ax.text(x=xtal[0]+0.1, y=xtal[1],
+                        s=energy_string)
+
+        if (show_moliere_radius):
+            ax.add_artist(moliere_circle)
+            ax.add_artist(moliere_circle_2)
+
+        impact_num += 1
+
+    if (show_traces):
+        # loop over columns
+        for i in range(0, len(this_island.calo.xtalGrid)):
+            # loop over rows
+            for j in range(0, len(this_island.calo.xtalGrid[i])):
+                if (this_island.calo.xtalGrid[i][j].trace is not []):
+                    axin = ax.inset_axes([i/9, j/6, 1/9, 1/6])
+                    axin.plot(this_island.calo.xtalGrid[i][j].choppedTrace)
+                    axin.get_xaxis().set_ticks([])
+                    axin.get_yaxis().set_ticks([])
+                    axin.patch.set_alpha(0)
+
+                    # we need to make sure they are put on the same
+                    # scale
+                    if (config['normalize']):
+                        axin.set_ylim(-0.1, 0.8)
+                    else:
+                        axin.set_ylim(config['pedestal'] - 200,
+                                      config['pedestal'] + 2500)
+
+    ax.set_xlim(0, 9)
+    ax.set_ylim(0, 6)
+    if (legend):
+        ax.legend()
+    # return fig
 
 
 class Template:
@@ -458,7 +585,7 @@ class Calorimeter:
         crystal, and tell that crystal that it got a signal with that energy at
         this time
         """
-        impact_radius = 2 * self.moliere_radius
+        impact_radius = 2 * moliere_radius
         self.impacts.append({"x": p.x,
                              "y": p.y,
                              "time": p.time,
@@ -469,10 +596,10 @@ class Calorimeter:
                              "ring_y": impact_radius
                              * np.sin(np.linspace(0, 2 * np.pi, 17))
                              + p.y,
-                             "small_ring_x": self.moliere_radius
+                             "small_ring_x": moliere_radius
                              * np.cos(np.linspace(0, 2 * np.pi, 17))
                              + p.x,
-                             "small_ring_y": self.moliere_radius
+                             "small_ring_y": moliere_radius
                              * np.sin(np.linspace(0, 2 * np.pi, 17))
                              + p.y})
 
@@ -524,129 +651,6 @@ class Calorimeter:
         """
         self.get_hit_crystals_()
         self.build_impacted_crystals_()
-
-    def draw(self, legend=False, show_moliere_radius=False,
-             show_hit_xtals=False, show_xtal_energies=False,
-             show_hit_label=False, show_traces=False, energy_cmap=False,
-             ring_alpha=None, label_e_scale='G'):
-        """
-        Give a matplotlib representation of this calorimeter
-
-        ------------- Parameters -------------
-        """
-        fig, ax = plt.subplots(1, 1)
-        fig.set_size_inches(9, 6)
-
-        for x in range(1, 9):
-            ax.axvline(x=x, ymin=0, ymax=6, color='xkcd:grey')
-
-        for y in range(1, 6):
-            ax.axhline(y=y, xmin=0, xmax=9, color='xkcd:grey')
-
-        # every bin is 10 MeV
-        colors = pylab.cm.viridis(np.linspace(0, 1, 100))
-
-        if (not ring_alpha):
-            if (show_traces):
-                ring_alpha = 0.3
-            else:
-                ring_alpha = 1
-
-        impact_num = 1
-        for impact in self.impacts:
-
-            if (energy_cmap):
-                color_index = impact["energy"] // 40
-                if (color_index >= 100):
-                    color_index = 99
-                this_color = colors[color_index]
-            else:
-                this_color = next(ax._get_lines.prop_cycler)['color']
-
-            if (label_e_scale == 'M'):
-                this_label = "P{0}  ".format(impact_num) + \
-                             "{0:.0f} MeV ".format(impact["energy"]) + \
-                             "{0:.2f} ns".format(impact['time'])
-            else:
-                this_label = "P{0}  ".format(impact_num) + \
-                             "{0:.2f} GeV ".format(impact["energy"]/1000) + \
-                             "{0:.2f} ns".format(impact['time'])
-
-            ax.plot(impact["x"], impact["y"],
-                    marker='o', markersize=10, color=this_color,
-                    alpha=ring_alpha,
-                    label=this_label)
-
-            if (show_hit_label):
-                ax.text(x=impact["x"]+0.15, y=impact["y"]-0.2,
-                        s="P"+str(impact_num), color=this_color, size=18,
-                        alpha=ring_alpha)
-
-            # ax.plot(impact["ring_x"], impact["ring_y"], color=this_color)
-            # ax.plot(impact["small_ring_x"], impact["small_ring_y"],
-            #        color=this_color)
-
-            moliere_circle = plt.Circle((impact["x"], impact["y"]),
-                                        self.moliere_radius, color=this_color,
-                                        linewidth=3, fill=False,
-                                        alpha=ring_alpha)
-            moliere_circle_2 = plt.Circle((impact["x"], impact["y"]),
-                                          2*self.moliere_radius,
-                                          color=this_color,
-                                          linewidth=3, fill=False,
-                                          alpha=ring_alpha)
-
-            if (show_hit_xtals):
-                for hit_crystal in impact["hit_crystals"]:
-                    rect = patches.Rectangle((hit_crystal[0], hit_crystal[1]),
-                                             1, 1, linewidth=3,
-                                             edgecolor='none',
-                                             facecolor='xkcd:light grey')
-                    ax.add_patch(rect)
-
-            if (show_xtal_energies):
-                for xtal in impact["hit_crystals"]:
-                    xtal_events = self.xtalGrid[xtal[0]][xtal[1]].impacts
-                    energies_list = []
-                    for event in xtal_events:
-                        energies_list.append(event[1])
-                    energy_string = ""
-                    for val in energies_list:
-                        energy_string += "{0} MeV \n".format(int(val))
-                    ax.text(x=xtal[0]+0.1, y=xtal[1],
-                            s=energy_string)
-
-            if (show_moliere_radius):
-                ax.add_artist(moliere_circle)
-                ax.add_artist(moliere_circle_2)
-
-            impact_num += 1
-
-        if (show_traces):
-            # loop over columns
-            for i in range(0, len(self.xtalGrid)):
-                # loop over rows
-                for j in range(0, len(self.xtalGrid[i])):
-                    if (self.xtalGrid[i][j].trace is not []):
-                        axin = ax.inset_axes([i/9, j/6, 1/9, 1/6])
-                        axin.plot(self.xtalGrid[i][j].choppedTrace)
-                        axin.get_xaxis().set_ticks([])
-                        axin.get_yaxis().set_ticks([])
-                        axin.patch.set_alpha(0)
-
-                        # we need to make sure they are put on the same
-                        # scale
-                        if (config['normalize']):
-                            axin.set_ylim(-0.1, 0.8)
-                        else:
-                            axin.set_ylim(config['pedestal'] - 200,
-                                          config['pedestal'] + 2500)
-
-        ax.set_xlim(0, 9)
-        ax.set_ylim(0, 6)
-        if (legend):
-            ax.legend()
-        # return fig
 
 # -----------------------------------------------------------------------------
 # ----------------------------- Private Functions -----------------------------
@@ -788,9 +792,8 @@ class Calorimeter:
         """
         """
         self.caloNum = caloNum
-        self.moliere_radius = 2.2 / 2.5
         self.impacts = []
-        self.impacts_registered_by_xtals = []
+        # self.impacts_registered_by_xtals = []
 
         # create our grid
         self.reset_xtalGrid_()
@@ -907,9 +910,9 @@ class Island:
             self.calo.chop()
 
         # extract traces to output format
-        self.island_trace = []
+        island_trace = []
         for c_index in range(0, len(self.calo.xtalGrid)):
-            self.island_trace.append([])
+            island_trace.append([])
 
             for r_index in range(0, len(self.calo.xtalGrid[c_index])):
                 if(config['doChop']):
@@ -917,13 +920,13 @@ class Island:
                         r_index].choppedTrace
                     if (not this_ct):
                         this_ct = np.zeros(self.calo.chop_size).tolist()
-                    self.island_trace[c_index].append(this_ct)
+                    island_trace[c_index].append(this_ct)
                 else:
-                    self.island_trace[c_index].append(
+                    island_trace[c_index].append(
                         self.calo.xtalGrid[c_index][r_index].trace)
 
-        self.island_trace = np.array(self.island_trace)
-        self.saved_traces = np.reshape(self.island_trace,
+        island_trace = np.array(island_trace)
+        self.saved_traces = np.reshape(island_trace,
                                        (9, 6, self.calo.chop_size))
 
         self.output = {}
