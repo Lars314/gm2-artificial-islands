@@ -134,7 +134,7 @@ def draw(this_island, legend=False, show_moliere_radius=False,
 
                     # we need to make sure they are put on the same
                     # scale
-                    if (config['normalize']):
+                    if (config['normalizeXtal']):
                         axin.set_ylim(-0.1, 0.8)
                     else:
                         axin.set_ylim(config['pedestal'] - 200,
