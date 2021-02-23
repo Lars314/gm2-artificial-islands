@@ -335,7 +335,6 @@ class Xtal:
             # our normalization
             thisTrace /= self.integral
             self.chopThreshold /= self.integral
-            self.pulses /= self.integral
         elif (config['doPedestal']):
             # if we don't want to normalize, we should make it look like it
             # came from an ADC, with a pedestal
@@ -518,9 +517,6 @@ class Xtal:
 
         self.time = []
         self.trace = []
-
-        # separated pulse traces, for debugging
-        self.pulses = []
 
         self.integral = None
 
@@ -835,8 +831,8 @@ class Island:
 
     def giveTimeOffsets_(self, verbosity, deltaTmin, deltaTmax):
         """
-        Creates the time offset values for each pulse
-        for the love of kale make deltaTmax >> minTimeOffset, otherwise
+        Creates the time offset values for each pulse.
+        Make deltaTmax >> minTimeOffset, otherwise
         this will take absolutely forever to run
         """
 
